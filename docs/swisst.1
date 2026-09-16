@@ -1,0 +1,96 @@
+.TH SWISST 1 "September 2026" "swisst 0.1.0" "User Commands"
+.SH NAME
+swisst \- provider, model and harness sync CLI
+.SH SYNOPSIS
+.B swisst
+.RI [ provider add | provider list | provider remove ]
+.br
+.B swisst
+.RI [ models NAME [--pick] [--json] ]
+.br
+.B swisst
+.RI [ model add | model remove ]
+.br
+.B swisst
+.RI [ sync [--harness ID] [--dry-run] ]
+.br
+.B swisst
+.RI [ harness list ]
+.br
+.B swisst
+.RI [ secret VAR ]
+.br
+.B swisst
+.RI [ config-path ]
+.SH DESCRIPTION
+Swisst keeps one provider store
+.RI ( ~/.config/swisst/swisst.json )
+and renders it into every harness config (opencode, claude, codex,
+gemini). API keys are kept by reference: the store holds only the
+secret name, values resolve at query/sync time through the configured
+secret backend.
+.SH COMMANDS
+.TP
+.B provider add --name NAME --base-url URL [--api openai-compatible|anthropic] [--key-env VAR] [--env-prefix PREFIX]
+Register or update a provider. Key default: \fB<NAME>_API_KEY\fR.
+PREFIX enables \fBPREFIX_BASE_URL\fR / \fBPREFIX_API_KEY\fR exports
+for env-style harnesses.
+.TP
+.B provider list
+Show providers with API kind, URL, key ref and pinned-model count.
+.TP
+.B provider remove NAME
+Drop a provider from the store.
+.TP
+.B models NAME [--pick] [--json]
+Live-enumerate \fB/v1/models\fR on an OpenAI-compatible provider.
+\fB*\fR marks pinned models. \fB--pick\fR opens the ratatui
+multi-select (space toggles, enter saves, q cancels) and writes the
+selection to the store. \fB--json\fR prints raw JSON.
+.TP
+.B model add PROVIDER MODEL_ID
+Pin one model id for sync.
+.TP
+.B model remove PROVIDER MODEL_ID
+Unpin one model id.
+.TP
+.B sync [--harness ID] [--dry-run]
+Render the store into harness configs. \fB--dry-run\fR prints actions
+without writing.
+.TP
+.B harness list
+Show harness ids, target paths and present/missing status.
+.TP
+.B secret VAR
+Resolve one secret through the backend (length only, never prints it).
+.TP
+.B config-path
+Print the store file path.
+.SH FILES
+.TP
+.I ~/.config/swisst/swisst.json
+Provider store (respects \fBXDG_CONFIG_HOME\fR).
+.TP
+.I ~/.config/swisst/harnesses/
+File-backed harness templates (see harness-template-spec.md).
+.SH ENVIRONMENT
+.TP
+.B XDG_CONFIG_HOME
+Config root override.
+.TP
+.B SWISST_HARNESS_DIR
+Extra template search dirs (path-separated, earliest wins).
+.TP
+.B INFISICAL_PROJECT, INFISICAL_ENV
+Infisical scoping fallback when the store sets no project/env.
+.TP
+.B <KEY_ENV> vars
+Plain-env secret values; override the manager backend.
+.SH EXAMPLES
+.EX
+swisst provider add --name mtplx --base-url http://192.168.1.200:8066
+swisst models mtplx --pick
+swisst sync --dry-run && swisst sync
+.EE
+.SH SEE ALSO
+harness-template-spec.md, README.md, docs/zoid-shell.md

@@ -31,6 +31,9 @@ new harnesses implement the `Harness` trait in `harnesses.rs`
 Build: `cargo build` (set `CARGO_TARGET_DIR` to a roomy drive on
 cramped Windows system disks).
 
+Docs: `docs/swisst.1` (man page), `docs/harness-template-spec.md`
+(template contract), `docs/zoid-shell.md` (planned GUI shell).
+
 ## GUI shell (planned)
 
 A zoid `tray` (taskbar) + `menubar` shell around this CLI is planned —
