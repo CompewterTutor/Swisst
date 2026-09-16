@@ -1,0 +1,15 @@
+[package]
+name = "swisst"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+crossterm = { workspace = true }
+dirs = { workspace = true }
+reqwest = { workspace = true }
+ratatui = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
