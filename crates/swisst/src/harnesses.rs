@@ -21,6 +21,7 @@ pub fn all() -> Vec<Box<dyn Harness>> {
         Box::new(ClaudeCode),
         Box::new(CodexCli),
         Box::new(GeminiCli),
+        Box::new(OhMyPi),
     ]
 }
 
@@ -164,6 +165,149 @@ impl Harness for GeminiCli {
 
 fn dirs_home() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("~"))
+}
+
+// --- omp --------------------------------------------------------------------
+/// Oh My Pi YAML: `providers.<name>` in `~/.omp/agent/models.yml` (or
+/// `$PI_CODING_AGENT_DIR/models.yml`) with `baseUrl` + `apiKey` (env var
+/// NAME — OMP resolves env-var-name-or-literal, so the secret itself never
+/// touches disk) + `api` + pinned `models`. Merge-style: foreign providers
+/// and root keys are preserved.
+fn omp_agent_dir() -> PathBuf {
+    if let Ok(dir) = std::env::var("PI_CODING_AGENT_DIR") {
+        if !dir.trim().is_empty() {
+            return PathBuf::from(dir);
+        }
+    }
+    dirs_home().join(".omp").join("agent")
+}
+
+fn omp_models_path() -> PathBuf {
+    let dir = omp_agent_dir();
+    let yml = dir.join("models.yml");
+    if yml.is_file() {
+        return yml;
+    }
+    let yaml = dir.join("models.yaml");
+    if yaml.is_file() {
+        return yaml;
+    }
+    yml
+}
+
+fn yaml_mapping(v: &mut serde_yaml::Value) -> &mut serde_yaml::Mapping {
+    if !v.is_mapping() {
+        *v = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
+    }
+    v.as_mapping_mut().expect("yaml mapping")
+}
+
+fn read_yaml(path: &PathBuf) -> serde_yaml::Value {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|r| serde_yaml::from_str(&r).ok())
+        .unwrap_or(serde_yaml::Value::Mapping(serde_yaml::Mapping::new()))
+}
+
+fn write_yaml(path: &PathBuf, v: &serde_yaml::Value, dry_run: bool) -> Result<()> {
+    if dry_run {
+        return Ok(());
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("mkdir {}", parent.display()))?;
+    }
+    let raw = serde_yaml::to_string(v)?;
+    std::fs::write(path, raw).with_context(|| format!("write {}", path.display()))?;
+    Ok(())
+}
+
+pub struct OhMyPi;
+
+impl Harness for OhMyPi {
+    fn id(&self) -> &'static str {
+        "omp"
+    }
+    fn name(&self) -> &'static str {
+        "Oh My Pi"
+    }
+    fn config_path(&self) -> PathBuf {
+        omp_models_path()
+    }
+    fn sync(&self, cfg: &Config, backend: &Backend, dry_run: bool) -> Result<String> {
+        let _ = backend;
+        let path = self.config_path();
+        let mut doc = read_yaml(&path);
+        let touched = {
+            let root = yaml_mapping(&mut doc);
+            let providers = root
+                .entry(serde_yaml::Value::String("providers".to_string()))
+                .or_insert(serde_yaml::Value::Mapping(serde_yaml::Mapping::new()));
+            let pmap = yaml_mapping(providers);
+            let mut touched = Vec::new();
+            for p in &cfg.providers {
+                let wire = if p.api == "anthropic" {
+                    "anthropic-messages"
+                } else {
+                    "openai-completions"
+                };
+                let mut entry = serde_yaml::Mapping::new();
+                entry.insert(
+                    serde_yaml::Value::String("baseUrl".to_string()),
+                    serde_yaml::Value::String(format!("{}/v1", p.base_url.trim_end_matches('/'))),
+                );
+                // Env var NAME, never the secret (OMP resolves name-or-literal).
+                entry.insert(
+                    serde_yaml::Value::String("apiKey".to_string()),
+                    serde_yaml::Value::String(p.key_env.clone()),
+                );
+                entry.insert(
+                    serde_yaml::Value::String("api".to_string()),
+                    serde_yaml::Value::String(wire.to_string()),
+                );
+                if p.models.is_empty() {
+                    // No pins: let OMP enumerate live for OpenAI-compatible
+                    // endpoints. Anthropic has no list endpoint — models get
+                    // pinned later via `swisst model add`.
+                    if p.api != "anthropic" {
+                        let mut discovery = serde_yaml::Mapping::new();
+                        discovery.insert(
+                            serde_yaml::Value::String("type".to_string()),
+                            serde_yaml::Value::String("openai-models-list".to_string()),
+                        );
+                        entry.insert(
+                            serde_yaml::Value::String("discovery".to_string()),
+                            serde_yaml::Value::Mapping(discovery),
+                        );
+                    }
+                } else {
+                    let models: Vec<serde_yaml::Value> = p.models
+                        .iter()
+                        .map(|m| {
+                            let mut mm = serde_yaml::Mapping::new();
+                            mm.insert(
+                                serde_yaml::Value::String("id".to_string()),
+                                serde_yaml::Value::String(m.clone()),
+                            );
+                            serde_yaml::Value::Mapping(mm)
+                        })
+                        .collect();
+                    entry.insert(
+                        serde_yaml::Value::String("models".to_string()),
+                        serde_yaml::Value::Sequence(models),
+                    );
+                }
+                pmap.insert(
+                    serde_yaml::Value::String(p.name.clone()),
+                    serde_yaml::Value::Mapping(entry),
+                );
+                touched.push(p.name.clone());
+            }
+            touched
+        };
+        write_yaml(&path, &doc, dry_run)?;
+        Ok(format!("{}: providers [{}]", path.display(), touched.join(", ")))
+    }
 }
 
 // --- codex ------------------------------------------------------------------

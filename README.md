@@ -15,7 +15,7 @@ swisst models mtplx
 swisst models mtplx --pick
 swisst model add mtplx <model-id>
 
-# render into harness configs (opencode, claude, codex, gemini)
+# render into harness configs (opencode, claude, codex, gemini, omp)
 swisst sync --dry-run
 swisst sync
 swisst sync --harness opencode
