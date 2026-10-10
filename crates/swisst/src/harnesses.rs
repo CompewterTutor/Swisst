@@ -72,8 +72,15 @@ impl Harness for Opencode {
         let path = self.config_path();
         let mut doc = read_json(&path);
         let map = doc.as_object_mut().unwrap();
+        // OpenCode 2's native shape: `providers.<name>` with the AI SDK
+        // transport package in `package` and the endpoint in `settings`. The
+        // V1 shape used `provider` + `npm` + `options`; the free-form `api`
+        // string that this harness used to emit is not a transport selector —
+        // OpenCode 2 normalizes it into `settings.baseURL`, which overwrote the
+        // endpoint with the literal "openaicompatible" and left no transport to
+        // resolve ("Unsupported package for <provider>/<model>: ").
         let providers = map
-            .entry("provider".to_string())
+            .entry("providers".to_string())
             .or_insert(serde_json::Value::Object(Default::default()));
         let pobj = providers.as_object_mut().unwrap();
         let mut touched = Vec::new();
@@ -86,8 +93,8 @@ impl Harness for Opencode {
                 p.name.clone(),
                 serde_json::json!({
                     "name": p.name,
-                    "api": "openaicompatible",
-                    "options": {
+                    "package": "aisdk:@ai-sdk/openai-compatible",
+                    "settings": {
                         "baseURL": format!("{}/v1", p.base_url.trim_end_matches('/')),
                         "apiKey": resolve_key(p, backend),
                     },

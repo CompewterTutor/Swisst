@@ -35,7 +35,7 @@ path = "~/.config/myharness/config.json"  # ~ and $XDG_CONFIG_HOME expand
 
 | kind | target | behavior |
 |------|--------|----------|
-| `opencode-providers` | JSON | set `provider.<name> = {name, api, options:{baseURL, apiKey}, models:{id:{}}}`, keep rest |
+| `opencode-providers` | JSON | OpenCode 2 native shape: set `providers.<name> = {name, package:"aisdk:@ai-sdk/openai-compatible", settings:{baseURL, apiKey}, models:{id:{}}}`, keep rest |
 | `env-json` | JSON | merge `<PREFIX>_BASE_URL` (+ `_API_KEY` when resolvable) into top-level `env` object; only providers with `env_prefix` |
 | `codex-providers` | TOML | set `[model_providers.<name>] = {name, base_url, env_key}` (key by name only, never the value) |
 | `omp-providers` | YAML | set `providers.<name> = {baseUrl, apiKey, api, models:[{id}]}` in `models.yml` (key by name only, never the value); empty pin list writes `discovery: {type: openai-models-list}` for openai-compatible |
